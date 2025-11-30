@@ -1,20 +1,50 @@
-// app/api/restaurants/[id]/route.ts
+// app/api/restaurants/route.ts
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-// ✅ FIXED: params is Promise in Next.js 15
-export async function GET(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
+// GET - List all restaurants with optional filters
+export async function GET(request: Request) {
   try {
-    // ✅ Await params
-    const { id } = await context.params
+    const { searchParams } = new URL(request.url)
     
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { id },
+    const province = searchParams.get('province')
+    const search = searchParams.get('search')
+    const verified = searchParams.get('verified')
+    const limit = searchParams.get('limit')
+    
+    // Build where clause
+    const where: {
+      province?: string
+      verified?: boolean
+      OR?: Array<{
+        name?: { contains: string; mode: 'insensitive' }
+        address?: { contains: string; mode: 'insensitive' }
+        cuisine?: { contains: string; mode: 'insensitive' }
+      }>
+    } = {}
+    
+    if (province && province !== 'All Provinces') {
+      where.province = province
+    }
+    
+    if (verified === 'true') {
+      where.verified = true
+    } else if (verified === 'false') {
+      where.verified = false
+    }
+    
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { address: { contains: search, mode: 'insensitive' } },
+        { cuisine: { contains: search, mode: 'insensitive' } },
+      ]
+    }
+    
+    const restaurants = await prisma.restaurant.findMany({
+      where,
       include: {
         owner: {
           select: {
@@ -23,21 +53,19 @@ export async function GET(
             email: true
           }
         },
-        qrScans: {
-          orderBy: { scannedAt: 'desc' },
-          take: 10
+        _count: {
+          select: {
+            qrScans: true
+          }
         }
-      }
+      },
+      orderBy: {
+        rating: 'desc'
+      },
+      ...(limit ? { take: parseInt(limit) } : {})
     })
 
-    if (!restaurant) {
-      return NextResponse.json(
-        { error: 'Restaurant not found' },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json(restaurant)
+    return NextResponse.json(restaurants)
   } catch (error) {
     console.error('Database error:', error)
     return NextResponse.json(
@@ -47,47 +75,51 @@ export async function GET(
   }
 }
 
-// ✅ PUT method
-export async function PUT(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
+// POST - Create new restaurant
+export async function POST(request: Request) {
   try {
-    const { id } = await context.params
     const body = await request.json()
 
-    const restaurant = await prisma.restaurant.update({
-      where: { id },
-      data: body
+    // ownerId is required - either from body or we need to skip
+    if (!body.ownerId) {
+      return NextResponse.json(
+        { error: 'Owner ID is required' },
+        { status: 400 }
+      )
+    }
+
+    const restaurant = await prisma.restaurant.create({
+      data: {
+        name: body.name,
+        address: body.address,
+        province: body.province,
+        cuisine: body.cuisine,
+        phone: body.phone || '',
+        openHours: body.openHours || '',
+        description: body.description || '',
+        latitude: body.latitude ? parseFloat(body.latitude) : 0,
+        longitude: body.longitude ? parseFloat(body.longitude) : 0,
+        certificationId: body.certificationId || `CERT-${Date.now()}`,
+        issuingAuthority: body.issuingAuthority || 'MUI',
+        certifiedDate: body.certifiedDate ? new Date(body.certifiedDate) : new Date(),
+        expiryDate: body.expiryDate ? new Date(body.expiryDate) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        verified: body.verified || false,
+        txHash: body.txHash || `0x${Math.random().toString(16).slice(2)}`,
+        blockNumber: body.blockNumber || Math.floor(Math.random() * 1000000).toString(),
+        rating: body.rating || 0,
+        reviewCount: body.reviewCount || 0,
+        qrScanCount: 0,
+        owner: {
+          connect: { id: body.ownerId }
+        }
+      }
     })
 
-    return NextResponse.json(restaurant)
+    return NextResponse.json(restaurant, { status: 201 })
   } catch (error) {
-    console.error('Update error:', error)
+    console.error('Create error:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
-
-// ✅ DELETE method
-export async function DELETE(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await context.params
-
-    await prisma.restaurant.delete({
-      where: { id }
-    })
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Delete error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to create restaurant' },
       { status: 500 }
     )
   }
