@@ -1,0 +1,83 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")  // ← TAMBAHIN INI KEMBALI
+}
+
+// User model (restaurant owner)
+model User {
+  id            String       @id @default(uuid())
+  email         String       @unique
+  name          String
+  passwordHash  String
+  role          Role         @default(OWNER)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  
+  restaurants   Restaurant[]
+}
+
+enum Role {
+  OWNER
+  ADMIN
+}
+
+// Restaurant model
+model Restaurant {
+  id              String   @id @default(uuid())
+  name            String
+  address         String
+  province        String
+  cuisine         String
+  phone           String
+  openHours       String
+  description     String   @db.Text
+  
+  // Location
+  latitude        Float
+  longitude       Float
+  
+  // Halal Certification
+  certificationId String
+  issuingAuthority String  @default("LPPOM MUI")
+  certifiedDate   DateTime
+  expiryDate      DateTime
+  verified        Boolean  @default(false)
+  
+  // FAKE BLOCKCHAIN (stored as strings)
+  txHash          String
+  blockNumber     String
+  
+  // Stats
+  rating          Float    @default(0)
+  reviewCount     Int      @default(0)
+  qrScanCount     Int      @default(0)
+  
+  // Relations
+  ownerId         String
+  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  qrScans         QRScan[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([province])
+  @@index([verified])
+  @@index([ownerId])
+}
+
+// QR Scan logs
+model QRScan {
+  id           String   @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  scannedAt    DateTime @default(now())
+  location     String?
+  
+  @@index([restaurantId])
+}
