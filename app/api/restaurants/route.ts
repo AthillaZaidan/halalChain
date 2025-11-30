@@ -1,35 +1,18 @@
-// app/api/restaurants/route.ts
+// app/api/restaurants/[id]/route.ts
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(request: Request) {
+// ✅ FIXED: params is now Promise in Next.js 15
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { searchParams } = new URL(request.url)
-    const province = searchParams.get('province')
-    const cuisine = searchParams.get('cuisine')
-    const search = searchParams.get('search')
-
-    // Build query filters
-    const where: any = { verified: true }
-
-    if (province && province !== 'all') {
-      where.province = province
-    }
-
-    if (cuisine && cuisine !== 'all') {
-      where.cuisine = cuisine
-    }
-
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { address: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } }
-      ]
-    }
-
-    const restaurants = await prisma.restaurant.findMany({
-      where,
+    // ✅ AWAIT params first
+    const { id } = await params
+    
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id },
       include: {
         owner: {
           select: {
@@ -38,60 +21,71 @@ export async function GET(request: Request) {
             email: true
           }
         },
-        _count: {
-          select: { qrScans: true }
+        qrScans: {
+          orderBy: { scannedAt: 'desc' },
+          take: 10
         }
-      },
-      orderBy: { createdAt: 'desc' }
+      }
     })
 
-    return NextResponse.json(restaurants)
+    if (!restaurant) {
+      return NextResponse.json(
+        { error: 'Restaurant not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json(restaurant)
   } catch (error) {
-    console.error('Database error:', error)
+    console.error('Failed to fetch restaurant:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch restaurants' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
 }
 
-// POST - Create new restaurant (for dashboard later)
-export async function POST(request: Request) {
+// ✅ FIXED: PUT handler
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params
     const body = await request.json()
-    
-    // TODO: Add authentication check here
-    // const session = await getServerSession()
-    // if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    
-    const restaurant = await prisma.restaurant.create({
-      data: {
-        name: body.name,
-        address: body.address,
-        province: body.province,
-        cuisine: body.cuisine,
-        phone: body.phone,
-        openHours: body.openHours,
-        description: body.description,
-        latitude: parseFloat(body.latitude),
-        longitude: parseFloat(body.longitude),
-        certificationId: body.certificationId || `MUI-${Date.now()}`,
-        certifiedDate: new Date(body.certifiedDate),
-        expiryDate: new Date(body.expiryDate),
-        verified: body.verified || false,
-        txHash: body.txHash || `0x${Math.random().toString(16).slice(2)}`,
-        blockNumber: body.blockNumber || Math.floor(Math.random() * 10000000).toString(),
-        rating: body.rating || 0,
-        reviewCount: body.reviewCount || 0,
-        ownerId: body.ownerId, // TODO: Get from session
-      }
+
+    const restaurant = await prisma.restaurant.update({
+      where: { id },
+      data: body
     })
-    
-    return NextResponse.json(restaurant, { status: 201 })
+
+    return NextResponse.json(restaurant)
   } catch (error) {
-    console.error('Failed to create restaurant:', error)
+    console.error('Failed to update restaurant:', error)
     return NextResponse.json(
-      { error: 'Failed to create restaurant' },
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// ✅ FIXED: DELETE handler
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+
+    await prisma.restaurant.delete({
+      where: { id }
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Failed to delete restaurant:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
