@@ -2,14 +2,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// ✅ FIXED: params is now Promise in Next.js 15
+export const dynamic = 'force-dynamic'
+
+// ✅ FIXED: params is Promise in Next.js 15
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    // ✅ AWAIT params first
-    const { id } = await params
+    // ✅ Await params
+    const { id } = await context.params
     
     const restaurant = await prisma.restaurant.findUnique({
       where: { id },
@@ -37,7 +39,7 @@ export async function GET(
 
     return NextResponse.json(restaurant)
   } catch (error) {
-    console.error('Failed to fetch restaurant:', error)
+    console.error('Database error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -45,13 +47,13 @@ export async function GET(
   }
 }
 
-// ✅ FIXED: PUT handler
+// ✅ PUT method
 export async function PUT(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
+    const { id } = await context.params
     const body = await request.json()
 
     const restaurant = await prisma.restaurant.update({
@@ -61,7 +63,7 @@ export async function PUT(
 
     return NextResponse.json(restaurant)
   } catch (error) {
-    console.error('Failed to update restaurant:', error)
+    console.error('Update error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -69,13 +71,13 @@ export async function PUT(
   }
 }
 
-// ✅ FIXED: DELETE handler
+// ✅ DELETE method
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
+    const { id } = await context.params
 
     await prisma.restaurant.delete({
       where: { id }
@@ -83,7 +85,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Failed to delete restaurant:', error)
+    console.error('Delete error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
