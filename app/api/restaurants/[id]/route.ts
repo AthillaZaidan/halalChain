@@ -2,13 +2,17 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
+    
     const restaurant = await prisma.restaurant.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         owner: {
           select: {
@@ -18,8 +22,8 @@ export async function GET(
           }
         },
         qrScans: {
-          take: 10,
-          orderBy: { scannedAt: 'desc' }
+          orderBy: { scannedAt: 'desc' },
+          take: 10
         }
       }
     })
@@ -35,24 +39,22 @@ export async function GET(
   } catch (error) {
     console.error('Database error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch restaurant' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
 }
 
-// PUT - Update restaurant
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
     const body = await request.json()
-    
-    // TODO: Add authentication & authorization check
-    
+
     const restaurant = await prisma.restaurant.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name: body.name,
         address: body.address,
@@ -66,10 +68,10 @@ export async function PUT(
         verified: body.verified,
       }
     })
-    
+
     return NextResponse.json(restaurant)
   } catch (error) {
-    console.error('Failed to update restaurant:', error)
+    console.error('Update error:', error)
     return NextResponse.json(
       { error: 'Failed to update restaurant' },
       { status: 500 }
@@ -77,21 +79,20 @@ export async function PUT(
   }
 }
 
-// DELETE - Delete restaurant
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    // TODO: Add authentication & authorization check
-    
+    const { id } = await context.params
+
     await prisma.restaurant.delete({
-      where: { id: params.id }
+      where: { id }
     })
-    
+
     return NextResponse.json({ message: 'Restaurant deleted successfully' })
   } catch (error) {
-    console.error('Failed to delete restaurant:', error)
+    console.error('Delete error:', error)
     return NextResponse.json(
       { error: 'Failed to delete restaurant' },
       { status: 500 }
