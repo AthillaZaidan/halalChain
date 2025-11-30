@@ -7,6 +7,15 @@ export const dynamic = 'force-dynamic'
 // GET - List all restaurants with optional filters
 export async function GET(request: Request) {
   try {
+    // Debug: Check if DATABASE_URL exists
+    if (!process.env.DATABASE_URL) {
+      console.error('DATABASE_URL is not set')
+      return NextResponse.json(
+        { error: 'Database configuration error', details: 'DATABASE_URL not configured' },
+        { status: 500 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     
     const province = searchParams.get('province')
