@@ -77,8 +77,15 @@ export async function GET(request: Request) {
     return NextResponse.json(restaurants)
   } catch (error) {
     console.error('Database error:', error)
+    // Return detailed error in response for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error', 
+        message: errorMessage,
+        stack: process.env.NODE_ENV === 'development' ? errorStack : undefined
+      },
       { status: 500 }
     )
   }
