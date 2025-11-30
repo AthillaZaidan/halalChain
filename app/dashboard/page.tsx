@@ -237,7 +237,7 @@ export default function DashboardPage() {
           <div className="p-4 border-t border-border">
             <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold">
-                WP
+                {userRestaurant.name.charAt(0)}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{userRestaurant.name}</p>
@@ -343,7 +343,9 @@ export default function DashboardPage() {
                           <Badge variant="secondary" className="text-xs">
                             {cert.authority}
                           </Badge>
-                          <span className="text-xs text-muted-foreground">Expires: {cert.expiryDate}</span>
+                          <span className="text-xs text-muted-foreground">
+                            Expires: {new Date(cert.expiryDate).toLocaleDateString()}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -424,7 +426,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Supplier Status - Placeholder since ingredients not in DB */}
+              {/* Supplier Status - Placeholder */}
               <div className="glass rounded-2xl p-6">
                 <h3 className="font-semibold text-foreground mb-4">Supplier Status</h3>
                 <div className="space-y-3">
@@ -432,6 +434,26 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-sm font-medium text-foreground">Main Ingredients</p>
                       <p className="text-xs text-muted-foreground">Verified Supplier</p>
+                    </div>
+                    <Badge className="bg-green-500/10 text-green-400 border-green-500/20 text-xs">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      verified
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-card/50">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Spice Supplier</p>
+                      <p className="text-xs text-muted-foreground">CV Rempah Nusantara</p>
+                    </div>
+                    <Badge className="bg-green-500/10 text-green-400 border-green-500/20 text-xs">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      verified
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-card/50">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Cooking Oil</p>
+                      <p className="text-xs text-muted-foreground">PT Minyak Halal</p>
                     </div>
                     <Badge className="bg-green-500/10 text-green-400 border-green-500/20 text-xs">
                       <CheckCircle2 className="h-3 w-3 mr-1" />

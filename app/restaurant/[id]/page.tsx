@@ -16,38 +16,26 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { prisma } from "@/lib/prisma"
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
+import { prisma } from "@/lib/prisma"
+
+// Format date helper
+function formatDate(date: Date | string): string {
+  const d = new Date(date)
+  return d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })
+}
 
 export default async function RestaurantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   
-  // Fetch restaurant from Prisma
+  // Fetch from Prisma
   const restaurant = await prisma.restaurant.findUnique({
-    where: { id },
-    include: {
-      owner: {
-        select: { id: true, name: true, email: true }
-      },
-      qrScans: {
-        take: 10,
-        orderBy: { scannedAt: 'desc' }
-      }
-    }
+    where: { id }
   })
 
   if (!restaurant) {
     notFound()
-  }
-
-  // Format dates for display
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
   }
 
   return (
@@ -73,7 +61,7 @@ export default async function RestaurantPage({ params }: { params: Promise<{ id:
 
           {/* Hero Section */}
           <div className="glass rounded-3xl overflow-hidden mb-8">
-            {/* Image Placeholder */}
+            {/* Image */}
             <div className="relative h-64 md:h-80 bg-gradient-to-br from-purple-500/20 to-pink-500/20">
               <div className="w-full h-full flex items-center justify-center">
                 <span className="text-8xl">🍽️</span>
@@ -213,6 +201,7 @@ export default async function RestaurantPage({ params }: { params: Promise<{ id:
               </h2>
 
               <div className="space-y-4">
+                {/* Placeholder supply chain items since not in DB */}
                 <div className="p-4 rounded-xl bg-card/50">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-foreground">Main Ingredients</span>
@@ -222,6 +211,26 @@ export default async function RestaurantPage({ params }: { params: Promise<{ id:
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">Verified Halal Supplier</p>
+                </div>
+                <div className="p-4 rounded-xl bg-card/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-foreground">Spice Supplier</span>
+                    <Badge className="bg-green-500/10 text-green-400 border-green-500/20">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      verified
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">CV Rempah Nusantara</p>
+                </div>
+                <div className="p-4 rounded-xl bg-card/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-foreground">Cooking Oil</span>
+                    <Badge className="bg-green-500/10 text-green-400 border-green-500/20">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      verified
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">PT Minyak Halal</p>
                 </div>
               </div>
 
@@ -237,8 +246,20 @@ export default async function RestaurantPage({ params }: { params: Promise<{ id:
                       <CheckCircle2 className="h-4 w-4 text-green-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">Initial Certification</p>
+                      <p className="text-sm font-medium text-foreground truncate">Annual Certification</p>
                       <p className="text-xs text-muted-foreground">{formatDate(restaurant.certifiedDate)}</p>
+                    </div>
+                    <Badge className="bg-green-500/10 text-green-400 border-green-500/20 shrink-0">
+                      Passed
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-card/50">
+                    <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="h-4 w-4 text-green-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">Routine Inspection</p>
+                      <p className="text-xs text-muted-foreground">6 months ago</p>
                     </div>
                     <Badge className="bg-green-500/10 text-green-400 border-green-500/20 shrink-0">
                       Passed

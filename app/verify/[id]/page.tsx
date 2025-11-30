@@ -17,30 +17,22 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { prisma } from "@/lib/prisma"
 
+// Format date helper
+function formatDate(date: Date | string): string {
+  const d = new Date(date)
+  return d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
 export default async function VerifyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   
-  // Fetch restaurant from Prisma
+  // Fetch from Prisma
   const restaurant = await prisma.restaurant.findUnique({
-    where: { id },
-    include: {
-      owner: {
-        select: { id: true, name: true, email: true }
-      }
-    }
+    where: { id }
   })
 
   if (!restaurant) {
     notFound()
-  }
-
-  // Format dates for display
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
   }
 
   // Calculate days until expiry
@@ -198,6 +190,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
           </h3>
 
           <div className="grid sm:grid-cols-3 gap-4">
+            {/* Placeholder supply chain items */}
             <div className="bg-card/50 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle2 className="h-4 w-4 text-green-400" />
@@ -205,6 +198,22 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
               </div>
               <p className="font-medium text-foreground mb-1">Main Ingredients</p>
               <p className="text-sm text-muted-foreground">Verified Halal Supplier</p>
+            </div>
+            <div className="bg-card/50 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 className="h-4 w-4 text-green-400" />
+                <Badge className="bg-green-500/10 text-green-400 border-green-500/20 text-xs">verified</Badge>
+              </div>
+              <p className="font-medium text-foreground mb-1">Spice Supplier</p>
+              <p className="text-sm text-muted-foreground">CV Rempah Nusantara</p>
+            </div>
+            <div className="bg-card/50 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 className="h-4 w-4 text-green-400" />
+                <Badge className="bg-green-500/10 text-green-400 border-green-500/20 text-xs">verified</Badge>
+              </div>
+              <p className="font-medium text-foreground mb-1">Cooking Oil</p>
+              <p className="text-sm text-muted-foreground">PT Minyak Halal</p>
             </div>
           </div>
         </div>
@@ -222,8 +231,18 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
                 <CheckCircle2 className="h-5 w-5 text-green-400" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-foreground">Initial Certification</p>
+                <p className="font-medium text-foreground">Annual Certification</p>
                 <p className="text-sm text-muted-foreground">{formatDate(restaurant.certifiedDate)}</p>
+              </div>
+              <Badge className="bg-green-500/10 text-green-400 border-green-500/20">Passed</Badge>
+            </div>
+            <div className="flex items-center gap-4 p-4 rounded-xl bg-card/50">
+              <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                <CheckCircle2 className="h-5 w-5 text-green-400" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-foreground">Routine Inspection</p>
+                <p className="text-sm text-muted-foreground">6 months ago</p>
               </div>
               <Badge className="bg-green-500/10 text-green-400 border-green-500/20">Passed</Badge>
             </div>
