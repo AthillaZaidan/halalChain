@@ -6,7 +6,6 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import {
   MapPin,
   Star,
-  Clock,
   ExternalLink,
   Filter,
   Search,
@@ -24,10 +23,6 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 
-// ❌ HAPUS INI - gak dipake lagi
-// import { restaurants, provinces, type Restaurant } from "@/lib/data"
-
-// ✅ TAMBAHKAN TYPE DEFINITION
 type Restaurant = {
   id: string
   name: string
@@ -61,7 +56,6 @@ type Restaurant = {
   }
 }
 
-// Indonesia provinces list
 const provinces = [
   "All Provinces",
   "Aceh",
@@ -89,10 +83,6 @@ const provinces = [
   "Nusa Tenggara Timur",
   "Papua",
   "Papua Barat",
-  "Papua Barat Daya",
-  "Papua Pegunungan",
-  "Papua Selatan",
-  "Papua Tengah",
   "Riau",
   "Sulawesi Barat",
   "Sulawesi Selatan",
@@ -104,35 +94,40 @@ const provinces = [
   "Sumatera Utara",
 ]
 
-// Indonesia center
 const INDONESIA_CENTER = { lat: -2.5, lng: 118 }
 const TILE_SIZE = 256
 
-// Convert lat/lng to world pixel coordinates at a given zoom level
-function latLngToWorldPixel(lat: number, lng: number, zoom: number) {
-  const scale = Math.pow(2, zoom) * TILE_SIZE
-  const x = ((lng + 180) / 360) * scale
-  const latRad = (lat * Math.PI) / 180
-  const y = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * scale
-  return { x, y }
+// ✅ SIMPLIFIED: Standard Web Mercator projection
+class WebMercator {
+  static latToY(lat: number, zoom: number): number {
+    const latRad = (lat * Math.PI) / 180
+    const n = Math.log(Math.tan(Math.PI / 4 + latRad / 2))
+    const scale = TILE_SIZE * Math.pow(2, zoom)
+    return (1 - n / Math.PI) / 2 * scale
+  }
+
+  static lngToX(lng: number, zoom: number): number {
+    const scale = TILE_SIZE * Math.pow(2, zoom)
+    return ((lng + 180) / 360) * scale
+  }
+
+  static yToLat(y: number, zoom: number): number {
+    const scale = TILE_SIZE * Math.pow(2, zoom)
+    const n = Math.PI * (1 - 2 * y / scale)
+    return (180 / Math.PI) * Math.atan(Math.sinh(n))
+  }
+
+  static xToLng(x: number, zoom: number): number {
+    const scale = TILE_SIZE * Math.pow(2, zoom)
+    return (x / scale) * 360 - 180
+  }
 }
 
-// Convert world pixel coordinates back to lat/lng at a given zoom level
-function worldPixelToLatLng(worldX: number, worldY: number, zoom: number) {
-  const scale = Math.pow(2, zoom) * TILE_SIZE
-  const lng = (worldX / scale) * 360 - 180
-  const n = Math.PI - (2 * Math.PI * worldY) / scale
-  const lat = (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)))
-  return { lat, lng }
-}
-
-// Get tile URL from OpenStreetMap
 function getTileUrl(x: number, y: number, z: number) {
   return `https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/${z}/${x}/${y}.png`
 }
 
 export function IndonesiaMap() {
-  // ✅ ADD: State untuk restaurants dari API
   const [restaurants, setRestaurants] = useState<Restaurant[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -143,15 +138,19 @@ export function IndonesiaMap() {
   const [selectedProvince, setSelectedProvince] = useState("All Provinces")
   const [showFilters, setShowFilters] = useState(false)
 
-  // Map state
   const [zoom, setZoom] = useState(5)
   const [center, setCenter] = useState(INDONESIA_CENTER)
   const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ mouseX: 0, mouseY: 0, centerWorldX: 0, centerWorldY: 0 })
+  const [dragStart, setDragStart] = useState({ 
+    mouseX: 0, 
+    mouseY: 0, 
+    centerX: 0, 
+    centerY: 0 
+  })
   const mapRef = useRef<HTMLDivElement>(null)
   const [mapSize, setMapSize] = useState({ width: 800, height: 500 })
 
-  // ✅ ADD: Fetch restaurants dari API
+  // Fetch restaurants
   useEffect(() => {
     async function fetchRestaurants() {
       setLoading(true)
@@ -160,7 +159,6 @@ export function IndonesiaMap() {
       try {
         const params = new URLSearchParams()
         
-        // Add filters to API request
         if (selectedProvince !== "All Provinces") {
           params.append('province', selectedProvince)
         }
@@ -186,7 +184,6 @@ export function IndonesiaMap() {
       }
     }
     
-    // Debounce search
     const timer = setTimeout(() => {
       fetchRestaurants()
     }, 300)
@@ -194,7 +191,6 @@ export function IndonesiaMap() {
     return () => clearTimeout(timer)
   }, [selectedProvince, searchQuery])
 
-  // Update map size on resize
   useEffect(() => {
     const updateSize = () => {
       if (mapRef.current) {
@@ -218,46 +214,64 @@ export function IndonesiaMap() {
     return matchesSearch && matchesProvince
   })
 
-  // Calculate which tiles to show
+  // ✅ FIXED: Get tiles to display
   const getTiles = useCallback(() => {
-    const centerPixel = latLngToWorldPixel(center.lat, center.lng, zoom)
-    const tiles: { x: number; y: number; z: number; left: number; top: number }[] = []
-    const tilesX = Math.ceil(mapSize.width / TILE_SIZE) + 2
-    const tilesY = Math.ceil(mapSize.height / TILE_SIZE) + 2
-    const centerTileX = Math.floor(centerPixel.x / TILE_SIZE)
-    const centerTileY = Math.floor(centerPixel.y / TILE_SIZE)
-    const offsetX = mapSize.width / 2 - (centerPixel.x % TILE_SIZE) - (tilesX / 2 - 1) * TILE_SIZE
-    const offsetY = mapSize.height / 2 - (centerPixel.y % TILE_SIZE) - (tilesY / 2 - 1) * TILE_SIZE
-
-    for (let i = 0; i < tilesX; i++) {
-      for (let j = 0; j < tilesY; j++) {
-        const tileX = centerTileX - Math.floor(tilesX / 2) + i
-        const tileY = centerTileY - Math.floor(tilesY / 2) + j
-        const maxTile = Math.pow(2, zoom)
-        if (tileX >= 0 && tileX < maxTile && tileY >= 0 && tileY < maxTile) {
+    const centerX = WebMercator.lngToX(center.lng, zoom)
+    const centerY = WebMercator.latToY(center.lat, zoom)
+    
+    const tiles: { x: number; y: number; z: number; screenX: number; screenY: number }[] = []
+    
+    const centerTileX = Math.floor(centerX / TILE_SIZE)
+    const centerTileY = Math.floor(centerY / TILE_SIZE)
+    
+    const offsetX = centerX - centerTileX * TILE_SIZE
+    const offsetY = centerY - centerTileY * TILE_SIZE
+    
+    const tilesWide = Math.ceil(mapSize.width / TILE_SIZE) + 1
+    const tilesHigh = Math.ceil(mapSize.height / TILE_SIZE) + 1
+    
+    const startX = centerTileX - Math.ceil(tilesWide / 2)
+    const startY = centerTileY - Math.ceil(tilesHigh / 2)
+    
+    const maxTile = Math.pow(2, zoom)
+    
+    for (let x = startX; x < startX + tilesWide + 1; x++) {
+      for (let y = startY; y < startY + tilesHigh + 1; y++) {
+        if (y >= 0 && y < maxTile) {
+          const tileX = ((x % maxTile) + maxTile) % maxTile
+          
+          const screenX = mapSize.width / 2 + (x - centerTileX) * TILE_SIZE - offsetX
+          const screenY = mapSize.height / 2 + (y - centerTileY) * TILE_SIZE - offsetY
+          
           tiles.push({
             x: tileX,
-            y: tileY,
+            y: y,
             z: zoom,
-            left: offsetX + i * TILE_SIZE,
-            top: offsetY + j * TILE_SIZE,
+            screenX,
+            screenY,
           })
         }
       }
     }
+    
     return tiles
-  }, [center, zoom, mapSize])
+  }, [center.lat, center.lng, zoom, mapSize.width, mapSize.height])
 
+  // ✅ FIXED: Get marker screen position
   const getMarkerPosition = useCallback(
     (lat: number, lng: number) => {
-      const centerWorldPixel = latLngToWorldPixel(center.lat, center.lng, zoom)
-      const markerWorldPixel = latLngToWorldPixel(lat, lng, zoom)
-      // Calculate screen position relative to map center
-      const screenX = mapSize.width / 2 + (markerWorldPixel.x - centerWorldPixel.x)
-      const screenY = mapSize.height / 2 + (markerWorldPixel.y - centerWorldPixel.y)
+      const markerX = WebMercator.lngToX(lng, zoom)
+      const markerY = WebMercator.latToY(lat, zoom)
+      
+      const centerX = WebMercator.lngToX(center.lng, zoom)
+      const centerY = WebMercator.latToY(center.lat, zoom)
+      
+      const screenX = mapSize.width / 2 + (markerX - centerX)
+      const screenY = mapSize.height / 2 + (markerY - centerY)
+      
       return { x: screenX, y: screenY }
     },
-    [center, zoom, mapSize],
+    [center.lat, center.lng, zoom, mapSize.width, mapSize.height],
   )
 
   const handleZoomIn = () => setZoom((z) => Math.min(z + 1, 15))
@@ -271,25 +285,29 @@ export function IndonesiaMap() {
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("button, a")) return
     setIsDragging(true)
-    const centerWorld = latLngToWorldPixel(center.lat, center.lng, zoom)
     setDragStart({
       mouseX: e.clientX,
       mouseY: e.clientY,
-      centerWorldX: centerWorld.x,
-      centerWorldY: centerWorld.y,
+      centerX: WebMercator.lngToX(center.lng, zoom),
+      centerY: WebMercator.latToY(center.lat, zoom),
     })
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return
+    
     const dx = e.clientX - dragStart.mouseX
     const dy = e.clientY - dragStart.mouseY
-    const newCenterWorldX = dragStart.centerWorldX - dx
-    const newCenterWorldY = dragStart.centerWorldY - dy
-    const newCenter = worldPixelToLatLng(newCenterWorldX, newCenterWorldY, zoom)
+    
+    const newCenterX = dragStart.centerX - dx
+    const newCenterY = dragStart.centerY - dy
+    
+    const newLat = WebMercator.yToLat(newCenterY, zoom)
+    const newLng = WebMercator.xToLng(newCenterX, zoom)
+    
     setCenter({
-      lat: Math.max(-85, Math.min(85, newCenter.lat)),
-      lng: newCenter.lng,
+      lat: Math.max(-85, Math.min(85, newLat)),
+      lng: newLng,
     })
   }
 
@@ -298,26 +316,42 @@ export function IndonesiaMap() {
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault()
+    
     const delta = e.deltaY > 0 ? -1 : 1
     const newZoom = Math.max(3, Math.min(15, zoom + delta))
+    
     if (newZoom !== zoom) {
       const rect = mapRef.current?.getBoundingClientRect()
       if (rect) {
         const mouseX = e.clientX - rect.left
         const mouseY = e.clientY - rect.top
-        const centerWorld = latLngToWorldPixel(center.lat, center.lng, zoom)
-        const mouseWorldX = centerWorld.x + (mouseX - mapSize.width / 2)
-        const mouseWorldY = centerWorld.y + (mouseY - mapSize.height / 2)
-        const mouseLatLng = worldPixelToLatLng(mouseWorldX, mouseWorldY, zoom)
-        const mouseWorldAtNewZoom = latLngToWorldPixel(mouseLatLng.lat, mouseLatLng.lng, newZoom)
-        const newCenterWorldX = mouseWorldAtNewZoom.x - (mouseX - mapSize.width / 2)
-        const newCenterWorldY = mouseWorldAtNewZoom.y - (mouseY - mapSize.height / 2)
-        const newCenter = worldPixelToLatLng(newCenterWorldX, newCenterWorldY, newZoom)
+        
+        // Get world coordinates at mouse position
+        const centerWorldX = WebMercator.lngToX(center.lng, zoom)
+        const centerWorldY = WebMercator.latToY(center.lat, zoom)
+        
+        const mouseWorldX = centerWorldX + (mouseX - mapSize.width / 2)
+        const mouseWorldY = centerWorldY + (mouseY - mapSize.height / 2)
+        
+        const mouseLat = WebMercator.yToLat(mouseWorldY, zoom)
+        const mouseLng = WebMercator.xToLng(mouseWorldX, zoom)
+        
+        // Calculate new center at new zoom
+        const mouseWorldXNew = WebMercator.lngToX(mouseLng, newZoom)
+        const mouseWorldYNew = WebMercator.latToY(mouseLat, newZoom)
+        
+        const newCenterWorldX = mouseWorldXNew - (mouseX - mapSize.width / 2)
+        const newCenterWorldY = mouseWorldYNew - (mouseY - mapSize.height / 2)
+        
+        const newLat = WebMercator.yToLat(newCenterWorldY, newZoom)
+        const newLng = WebMercator.xToLng(newCenterWorldX, newZoom)
+        
         setCenter({
-          lat: Math.max(-85, Math.min(85, newCenter.lat)),
-          lng: newCenter.lng,
+          lat: Math.max(-85, Math.min(85, newLat)),
+          lng: newLng,
         })
       }
+      
       setZoom(newZoom)
     }
   }
@@ -332,10 +366,8 @@ export function IndonesiaMap() {
 
   return (
     <div className="relative w-full">
-      {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-background via-background/80 to-background -z-10" />
 
-      {/* Section Header */}
       <div className="text-center mb-8">
         <h2 className="text-3xl md:text-4xl font-bold mb-4">
           <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
@@ -350,7 +382,6 @@ export function IndonesiaMap() {
         </p>
       </div>
 
-      {/* Search and Filter Bar */}
       <div className="flex flex-col md:flex-row gap-4 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -391,7 +422,6 @@ export function IndonesiaMap() {
         </div>
       </div>
 
-      {/* ✅ Loading State */}
       {loading && (
         <div className="flex items-center justify-center h-[600px] bg-card border border-border rounded-xl">
           <div className="text-center">
@@ -401,7 +431,6 @@ export function IndonesiaMap() {
         </div>
       )}
 
-      {/* ✅ Error State */}
       {error && !loading && (
         <div className="flex items-center justify-center h-[600px] bg-card border border-border rounded-xl">
           <div className="text-center">
@@ -411,10 +440,8 @@ export function IndonesiaMap() {
         </div>
       )}
 
-      {/* Map Container - Only show when not loading and no error */}
       {!loading && !error && (
         <div className="grid lg:grid-cols-[1fr_400px] gap-6">
-          {/* Interactive Map */}
           <div className="relative bg-card border border-border rounded-xl overflow-hidden shadow-lg">
             <div
               ref={mapRef}
@@ -434,8 +461,8 @@ export function IndonesiaMap() {
                     alt=""
                     className="absolute"
                     style={{
-                      left: tile.left,
-                      top: tile.top,
+                      left: tile.screenX,
+                      top: tile.screenY,
                       width: TILE_SIZE,
                       height: TILE_SIZE,
                     }}
@@ -449,7 +476,6 @@ export function IndonesiaMap() {
                 const isSelected = selectedRestaurant?.id === restaurant.id
                 const isHovered = hoveredRestaurant?.id === restaurant.id
 
-                // Only render if visible on screen
                 if (pos.x < -50 || pos.x > mapSize.width + 50 || pos.y < -50 || pos.y > mapSize.height + 50) {
                   return null
                 }
@@ -464,12 +490,10 @@ export function IndonesiaMap() {
                       transform: "translate(-50%, -100%)",
                     }}
                   >
-                    {/* Pulse animation */}
                     {(isSelected || isHovered) && (
                       <div className="absolute -inset-4 bg-green-500/20 rounded-full animate-ping" />
                     )}
 
-                    {/* Pin marker */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
@@ -492,7 +516,6 @@ export function IndonesiaMap() {
                               : "fill-orange-400 text-orange-500"
                         }`}
                       />
-                      {/* Pin tail */}
                       <div
                         className={`absolute -bottom-2 left-1/2 -translate-x-1/2 w-0.5 h-2 ${
                           restaurant.verified
@@ -506,7 +529,6 @@ export function IndonesiaMap() {
                       />
                     </button>
 
-                    {/* Tooltip on hover */}
                     {isHovered && !isSelected && (
                       <div className="absolute left-full ml-4 -top-2 w-64 bg-card border border-border rounded-lg shadow-xl p-3 pointer-events-none z-50">
                         <div className="flex items-start justify-between mb-2">
@@ -548,17 +570,14 @@ export function IndonesiaMap() {
                 </Button>
               </div>
 
-              {/* Zoom level indicator */}
               <div className="absolute bottom-4 left-4 bg-card/90 border border-border rounded-lg px-3 py-1 text-xs">
                 Zoom: <span className="font-mono font-semibold">{zoom}x</span>
               </div>
 
-              {/* Restaurant count */}
               <div className="absolute bottom-4 left-24 bg-card/90 border border-border rounded-lg px-3 py-1 text-xs">
                 Showing {filteredRestaurants.length} restaurants
               </div>
 
-              {/* Legend */}
               <div className="absolute top-4 left-4 bg-card/90 border border-border rounded-lg p-3 text-xs space-y-2">
                 <div className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 fill-green-400 text-green-500" />
@@ -570,7 +589,6 @@ export function IndonesiaMap() {
                 </div>
               </div>
 
-              {/* Attribution */}
               <div className="absolute bottom-2 right-4 text-[10px] text-muted-foreground bg-card/70 px-2 py-1 rounded">
                 © OpenStreetMap contributors
               </div>
@@ -619,7 +637,6 @@ export function IndonesiaMap() {
                   </div>
                 </div>
 
-                {/* Blockchain Info */}
                 <div className="border-t border-border pt-4 space-y-3">
                   <h4 className="font-semibold flex items-center gap-2">
                     <Shield className="h-4 w-4" />
@@ -665,7 +682,6 @@ export function IndonesiaMap() {
         </div>
       )}
 
-      {/* Quick Access Restaurant Cards */}
       {!loading && !error && filteredRestaurants.length > 0 && (
         <div className="mt-8">
           <h3 className="text-xl font-semibold mb-4">Quick Access</h3>
